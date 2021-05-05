@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# the size of the qcow image
+export BASE_QCOW2_SIZE=12G
