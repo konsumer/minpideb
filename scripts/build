@@ -1,4 +1,85 @@
 #!/bin/bash
 
+# Build a minideb qcow2 image
+
+if [ "$(id -u)" != "0" ]; then
+    echo "Please run as root" 1>&2
+    exit 1
+fi
+
+progname=$(basename $0)
+dir=$(cd "${0%[/\\]*}" > /dev/null && pwd)
+
+usage() {
+  cat << HEREDOC
+
+Usage:
+    Usage: ${progname} <WORK_DIR>
+
+HEREDOC
+}
+
+export WORK_DIR=$(realpath "${WORK_DIR:-$1}")
+
 # the size of the qcow image
-export BASE_QCOW2_SIZE=12G
+export BASE_QCOW2_SIZE=${BASE_QCOW2_SIZE:-12G}
+export ROOTFS_DIR="${ROOTFS_DIR:-${WORK_DIR}/root}"
+export RELEASE=${RELEASE:-"buster"}
+export MINIDEB_NAME=${MINIDEB_NAME:-"minideb"}
+
+if [ -z "${WORK_DIR}" ]; then
+  usage
+  exit 1
+fi
+
+dir=$(cd "${0%[/\\]*}" > /dev/null && pwd)
+
+source "${dir}/qcow2_handling"
+
+# set things up to look like pi-gen for qcow2_handling
+export STAGE="${MINIDEB_NAME}"
+
+echo -e "\e[30;42m Building image-${STAGE}.qcow2 \e[0m"
+
+load_qimage
+
+echo -e "\e[30;42m Adding busybox \e[0m"
+
+# add busybox
+pushd "${ROOTFS_DIR}" > /dev/null
+wget -qO- https://github.com/docker-library/busybox/raw/860ecd095f287daa2204cef1ef9728a29806cddd/stable/musl/busybox.tar.xz | tar -vxJf -
+mkdir -p usr/bin sbin
+popd > /dev/null
+chroot "${ROOTFS_DIR}" busybox --install
+
+echo -e "\e[30;42m Adding initial files and setting things up. \e[0m"
+rsync -r "${dir}/../files/" "${ROOTFS_DIR}"
+
+echo -e "\e[30;42m Setting up apt \e[0m"
+
+mkdir -p "${ROOTFS_DIR}/deb"
+pushd "${ROOTFS_DIR}/deb" > /dev/null
+cat << EOF | docker run -v ${PWD}:/pi/deb --rm -i konsumer/pibuilder chroot /pi bash
+cd /deb
+echo "in /deb"
+pwd
+chown _apt /deb
+apt-get update
+apt-get download apt
+for i in \$(apt-cache depends apt | grep -E 'Depends' | cut -d ':' -f 2,3 | sed -e s/'<'/''/ -e s/'>'/''/); do
+  apt-get download "\${i}"
+done
+EOF
+popd > /dev/null
+
+mkdir -p "${ROOTFS_DIR}/var/lib/dpkg/status"
+# wget -qO- http://archive.raspberrypi.org/debian/raspberrypi.gpg.key | chroot "${ROOTFS_DIR}" apt-key add -
+sed "s/RELEASE/${RELEASE}/g" -i "${ROOTFS_DIR}/etc/apt/sources.list"
+
+chroot "${ROOTFS_DIR}" 'dpkg -i /deb/*.deb'
+rm -rf "${ROOTFS_DIR}/deb"
+
+chroot "${ROOTFS_DIR}" sh
+
+echo -e "\e[30;42m Finalizing image ${WORK_DIR}/image-${STAGE}.qcow2 \e[0m"
+unload_qimage

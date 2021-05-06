@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Simple CLI wrapper around qcow2-handling
 # this came from https://github.com/RPi-Distro/pi-gen
 
 if [ "$(id -u)" != "0" ]; then

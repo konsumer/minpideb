@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Functions for working with qcow2 images
 # this came from https://github.com/RPi-Distro/pi-gen
 
 # QCOW2 Routines
