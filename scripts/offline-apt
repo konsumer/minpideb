@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# collect all dependencies via apt
+# use this in a chroot that has internet to get a package & all it's deps
+# offline-apt PACKAGE OUTPUT_DIR
+
+PACKAGE="${1}"
+OUTPUT_DIR="${2}"
+
+download(){
+  if grep -Fxq "$1" "${OUTPUT_DIR}/packages.txt"; then
+    echo "already have: ${1}"
+  else
+    echo "adding: ${1}"
+    apt-get download "${1}"
+    echo "${1}" >> "${OUTPUT_DIR}/packages.txt"
+    mv *.deb "${OUTPUT_DIR}"
+    getdeps "${1}"
+  fi
+}
+
+getdeps(){
+  download "${1}"
+  for i in $(apt-cache depends -i "$1" | grep -E 'Depends' | cut -d ':' -f 2,3 | sed -e s/'<'/''/ -e s/'>'/''/); do
+    download "${i}"
+  done
+}
+
+cd /tmp
+apt-get update
+echo "" > "${OUTPUT_DIR}/packages.txt"
+getdeps "${PACKAGE}"

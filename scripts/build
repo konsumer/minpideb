@@ -59,27 +59,15 @@ echo -e "\e[30;42m Setting up apt \e[0m"
 
 mkdir -p "${ROOTFS_DIR}/deb"
 pushd "${ROOTFS_DIR}/deb" > /dev/null
-cat << EOF | docker run -v ${PWD}:/pi/deb --rm -i konsumer/pibuilder chroot /pi bash
-cd /deb
-echo "in /deb"
-pwd
-chown _apt /deb
-apt-get update
-apt-get download apt
-for i in \$(apt-cache depends apt | grep -E 'Depends' | cut -d ':' -f 2,3 | sed -e s/'<'/''/ -e s/'>'/''/); do
-  apt-get download "\${i}"
-done
-EOF
+docker run -v ${PWD}:/pi/deb -v ${dir}:/pi/scripts --rm -i konsumer/pibuilder chroot /pi /scripts/offline-apt apt /deb
 popd > /dev/null
 
 mkdir -p "${ROOTFS_DIR}/var/lib/dpkg/status"
 # wget -qO- http://archive.raspberrypi.org/debian/raspberrypi.gpg.key | chroot "${ROOTFS_DIR}" apt-key add -
 sed "s/RELEASE/${RELEASE}/g" -i "${ROOTFS_DIR}/etc/apt/sources.list"
 
-chroot "${ROOTFS_DIR}" 'dpkg -i /deb/*.deb'
-rm -rf "${ROOTFS_DIR}/deb"
-
-chroot "${ROOTFS_DIR}" sh
+chroot "${ROOTFS_DIR}" dpkg -i /deb/\*.deb
+# rm -rf "${ROOTFS_DIR}/deb"
 
 echo -e "\e[30;42m Finalizing image ${WORK_DIR}/image-${STAGE}.qcow2 \e[0m"
 unload_qimage
