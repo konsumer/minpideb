@@ -50,7 +50,7 @@ pushd "${ROOTFS_DIR}" > /dev/null
 wget -qO- https://github.com/docker-library/busybox/raw/860ecd095f287daa2204cef1ef9728a29806cddd/stable/musl/busybox.tar.xz | tar -vxJf -
 mkdir -p usr/bin sbin
 popd > /dev/null
-chroot "${ROOTFS_DIR}" busybox --install
+# chroot "${ROOTFS_DIR}" busybox --install
 
 echo -e "\e[30;42m Adding initial files and setting things up. \e[0m"
 rsync -r "${dir}/../files/" "${ROOTFS_DIR}"
@@ -62,12 +62,30 @@ pushd "${ROOTFS_DIR}/deb" > /dev/null
 docker run -v ${PWD}:/pi/deb -v ${dir}:/pi/scripts --rm -i konsumer/pibuilder chroot /pi /scripts/offline-apt apt /deb
 popd > /dev/null
 
-mkdir -p "${ROOTFS_DIR}/var/lib/dpkg/status"
+# do I need this? I think 1 of the debs provides these keys
 # wget -qO- http://archive.raspberrypi.org/debian/raspberrypi.gpg.key | chroot "${ROOTFS_DIR}" apt-key add -
+
 sed "s/RELEASE/${RELEASE}/g" -i "${ROOTFS_DIR}/etc/apt/sources.list"
 
-chroot "${ROOTFS_DIR}" dpkg -i /deb/\*.deb
+chroot "${ROOTFS_DIR}" sh
+
+# install proper dpkg first, using the busybox stub
+echo "
+  mkdir -p /var/lib/dpkg/info /var/lib/dpkg/status /var/lib/dpkg/available
+  busybox dpkg -i /deb/libc6* /deb/libgcc1*
+  busybox dpkg -i /deb/gcc-8-base*
+  busybox dpkg -i /deb/libz*
+  busybox dpkg -i /deb/libbz2*
+  busybox dpkg -i /deb/dpkg*
+
+" | chroot "${ROOTFS_DIR}" sh
+
+# then install apt deps
+echo "dpkg -i /deb/*.deb" | chroot "${ROOTFS_DIR}" sh
+
 # rm -rf "${ROOTFS_DIR}/deb"
+
+
 
 echo -e "\e[30;42m Finalizing image ${WORK_DIR}/image-${STAGE}.qcow2 \e[0m"
 unload_qimage
