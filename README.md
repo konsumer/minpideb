@@ -4,7 +4,7 @@ A truly minimal starting-point for pi embedded OS that you can still use apt & r
 
 I wanted a completely minimal pi OS, that I can still install stuff with `apt`, but not much else. It's more manual, and you will have to do stuff to get it how you want, but it's a good starting-point for me.
 
-# WRANING
+# WARNING
 
 I actually moved on to [alpibase](https://github.com/konsumer/alpibase), which is a similar concept, but using alpine as the base, so busybox as a base works a bit better.
 
